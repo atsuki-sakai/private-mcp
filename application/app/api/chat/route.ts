@@ -11,10 +11,14 @@ export async function POST(request: NextRequest) {
     
     try {
         // MCPクライアントを作成
+        const mcpUrl = process.env.NODE_ENV === 'development' && process.env.DOCKER 
+            ? "http://mcp-server:3001/sse"  // Docker内
+            : "http://localhost:3001/sse";   // ローカル
+            
         mcpClient = await createMCPClient({
             transport: {
                 type: "sse",
-                url: "http://localhost:3001/sse",
+                url: mcpUrl,
             }
         });
 
@@ -29,25 +33,16 @@ export async function POST(request: NextRequest) {
             model: openrouter.chat('deepseek/deepseek-chat-v3-0324:free'),
             messages: messages,
             tools,
-            onFinish: async () => {
-                try {
-                    if (mcpClient) {
-                        await mcpClient.close();
-                        console.log('MCP client closed successfully');
+            onFinish: () => {
+                // ストリーミング完了後にMCPクライアントをクローズ
+                setTimeout(async () => {
+                    try {
+                        await mcpClient?.close();
+                        console.log('MCP client closed after streaming completion');
+                    } catch (error) {
+                        console.error('Error closing MCP client:', error);
                     }
-                } catch (error) {
-                    console.error('Error closing MCP client:', error);
-                }
-            },
-            onError: async (error) => {
-                console.error('Error in streamText:', error);
-                try {
-                    if (mcpClient) {
-                        await mcpClient.close();
-                    }
-                } catch (closeError) {
-                    console.error('Error closing MCP client on error:', closeError);
-                }
+                }, 100);
             }
         });
 
@@ -55,6 +50,16 @@ export async function POST(request: NextRequest) {
         
     } catch (error) {
         console.error('Error in POST /api/chat:', error);
+        
+        // エラー時にMCPクライアントをクローズ
+        if (mcpClient) {
+            try {
+                await mcpClient.close();
+                console.log('MCP client closed due to error');
+            } catch (closeError) {
+                console.error('Error closing MCP client:', closeError);
+            }
+        }
         
         // エラーレスポンスを返す
         return new Response(
@@ -67,9 +72,5 @@ export async function POST(request: NextRequest) {
                 headers: { 'Content-Type': 'application/json' } 
             }
         );
-    } finally {
-        if (mcpClient) {
-            await mcpClient.close();
-        }
     }
 }

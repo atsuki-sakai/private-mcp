@@ -5,9 +5,21 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api.js";
 import * as dotenv from "dotenv";
 import bcrypt from 'bcrypt';
-dotenv.config({ path: ".env.local" });
 
-const client = new ConvexHttpClient(process.env["CONVEX_URL"] as string);
+// Dockerコンテナ内では環境変数を直接使用、ローカルでは.env.localを読み込む
+if (process.env.NODE_ENV !== 'development' || !process.env.CONVEX_URL) {
+  dotenv.config({ path: ".env.local" });
+}
+
+// Debug: CONVEX_URLの値を確認
+console.log('CONVEX_URL:', process.env["CONVEX_URL"]);
+
+const convexUrl = process.env["CONVEX_URL"];
+if (!convexUrl) {
+  throw new Error("CONVEX_URL environment variable is required");
+}
+
+const client = new ConvexHttpClient(convexUrl);
 
 const app = new Hono()
 

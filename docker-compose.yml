@@ -1,0 +1,53 @@
+services:
+  frontend:
+    build:
+      context: ./application
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      NODE_ENV: development
+      DOCKER: "true"
+      OPEN_ROUTER_API_KEY: ${OPEN_ROUTER_API_KEY}
+    volumes:
+      - ./application:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+      - mcp-server
+    command: pnpm dev
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      CONVEX_URL: https://aware-kudu-228.convex.cloud
+      CONVEX_DEPLOYMENT: dev:aware-kudu-228
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    command: pnpm dev
+
+  mcp-server:
+    build:
+      context: ./mcp-server
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      DOCKER: "true"
+    volumes:
+      - ./mcp-server:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    command: pnpm dev
+
+networks:
+  default:
+    driver: bridge

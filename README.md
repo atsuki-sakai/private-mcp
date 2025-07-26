@@ -4,6 +4,14 @@
 
 ## 技術スタック
 
+### Frontend Application
+- **Next.js**: React フレームワーク
+- **TypeScript**: 型安全性
+- **Tailwind CSS**: スタイリング
+- **@tanstack/react-query**: データフェッチング
+- **AI SDK**: AI チャット機能
+- **MCP SDK**: Model Context Protocol クライアント
+
 ### Backend API Server
 - **Hono**: 高速な Web フレームワーク
 - **@hono/node-server**: Node.js用のHonoアダプター
@@ -20,21 +28,22 @@
 ## アーキテクチャ
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Claude CLI    │───▶│   MCP Server    │───▶│  Backend API    │
-│  (Natural Lang) │    │  (Port: 3001)   │    │  (Port: 3000)   │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Claude CLI    │───▶│   MCP Server    │───▶│  Backend API    │───▶│  Convex Database│
+│  (Natural Lang) │    │  (Port: 3001)   │    │  (Port: 3000)   │    │   (Cloud/Local) │
+└─────────────────┘    └─────────────────┘    └─────────────────┘    └─────────────────┘
+                                 │                        ▲
                                  │                        │
-                                 │                        ▼
-                                 │              ┌─────────────────┐
-                                 │              │  Convex Database│
-                                 │              │   (Cloud/Local) │
-                                 │              └─────────────────┘
-                                 ▼
-                       ┌─────────────────┐
-                       │ SSE Connection  │
-                       │  (Real-time)    │
-                       └─────────────────┘
+                                 ▼                        │
+                       ┌─────────────────┐                │
+                       │ SSE Connection  │                │
+                       │  (Real-time)    │                │
+                       └─────────────────┘                │
+                                                          │
+┌─────────────────┐    ┌─────────────────┐                │
+│   Frontend App  │───▶│    Chat API     │ ───────────────┘
+│  (Port: 3002)   │    │  (/api/chat)    │
+└─────────────────┘    └─────────────────┘
 ```
 
 ## データベーススキーマ
@@ -87,9 +96,15 @@ cd private-mcp
 
 ### 3. 依存関係のインストール
 
+#### Frontend Application
+```bash
+cd application
+pnpm install
+```
+
 #### Backend
 ```bash
-cd backend
+cd ../backend
 pnpm install
 ```
 
@@ -123,24 +138,43 @@ npx convex deploy
 
 ## 起動方法
 
-### 1. Convex開発サーバーの起動
+### Docker Composeを使用した一括起動（推奨）
+```bash
+docker-compose up -d
+```
+
+これにより以下のサービスが同時に起動します：
+- Frontend Application: http://localhost:3002
+- Backend API: http://localhost:3000
+- MCP Server: http://localhost:3001
+
+### 個別起動
+
+#### 1. Convex開発サーバーの起動
 ```bash
 cd backend
 npx convex dev
 ```
 
-### 2. Backend APIサーバーの起動
+#### 2. Backend APIサーバーの起動
 ```bash
 cd backend
 pnpm dev
 # http://localhost:3000 で起動
 ```
 
-### 3. MCPサーバーの起動
+#### 3. MCPサーバーの起動
 ```bash
 cd mcp-server
 pnpm dev
 # http://localhost:3001 で起動
+```
+
+#### 4. Frontend Applicationの起動
+```bash
+cd application
+pnpm dev
+# http://localhost:3002 で起動
 ```
 
 ## 利用方法

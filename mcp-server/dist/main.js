@@ -7,7 +7,10 @@ import { serve } from "@hono/node-server";
 const isHttps = false;
 const host = "localhost";
 const port = 3001;
-const apiUrl = "http://localhost:3000/users";
+// Docker環境ではバックエンドサービス名を使用
+const apiUrl = process.env.NODE_ENV === 'development' && process.env.DOCKER
+    ? "http://backend:3000/users" // Docker内
+    : "http://localhost:3000/users"; // ローカル
 const app = new Hono();
 const mcpServer = new McpServer({
     name: "first-mcp-server",
