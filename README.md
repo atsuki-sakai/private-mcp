@@ -262,6 +262,20 @@ mcpServer.tool(
 - ブラウザの開発者ツールでネットワークリクエストを監視
 
 ### テスト
+### backendとmcp-serverのサーバを立ち上げる
+```bash
+# MCPの動作検証のテスト
+以下をcursor,claudeなどに追加
+{
+  mcpServers: {
+    "first-mcp-server": {
+      "type": "sse",
+      "url": "http://localhost:3001/sse"
+    }
+  }
+}
+```
+### 例: first-mcp-serverを利用して、ユーザーを追加してください。
 ```bash
 # API エンドポイントのテスト
 curl -X POST http://localhost:3000/users \

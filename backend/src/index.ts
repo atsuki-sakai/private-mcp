@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
+import { cors } from 'hono/cors'
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api.js";
 import * as dotenv from "dotenv";
@@ -10,7 +11,20 @@ const client = new ConvexHttpClient(process.env["CONVEX_URL"] as string);
 
 const app = new Hono()
 
+// CORS設定を改善 - 開発環境ではすべてのオリジンを許可
+app.use('*', cors({
+    origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'],
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept'],
+  credentials: true,
+  maxAge: 86400,
+}))
+
 // users
+app.get('/users', async (c) => {
+  const users = await client.query(api.users.query.getUsers);
+  return c.json(users);
+})
 app.post('/users', async (c) => {
   const body = await c.req.json()
   if (!body.name || !body.email || !body.password) {

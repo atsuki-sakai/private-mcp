@@ -27,7 +27,12 @@ async function addUser(name, email, password) {
             body: JSON.stringify({ name, email, password }),
         });
         if (!response.ok) {
-            throw new Error(`Failed to add user: ${response.status} ${response.statusText}`);
+            console.error(`Failed to add user: ${response.status} ${response.statusText}`);
+            return {
+                success: false,
+                data: null,
+                message: `Failed to add user: ${response.status} ${response.statusText}`
+            };
         }
         const data = await response.json();
         return {
@@ -37,7 +42,12 @@ async function addUser(name, email, password) {
         };
     }
     catch (error) {
-        throw new Error(`Failed to add user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        console.error(`Failed to add user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        return {
+            success: false,
+            data: null,
+            message: `Failed to add user: ${error instanceof Error ? error.message : 'Unknown error'}`
+        };
     }
 }
 mcpServer.tool("addUser", "Add a user to the database", {
@@ -72,9 +82,19 @@ async function getUser(id) {
         const response = await fetch(`${apiUrl}/${id}`);
         if (!response.ok) {
             if (response.status === 404) {
-                throw new Error(`User with id '${id}' not found`);
+                console.error(`User with id '${id}' not found`);
+                return {
+                    success: false,
+                    data: null,
+                    message: `User with id '${id}' not found`
+                };
             }
-            throw new Error(`Failed to get user: ${response.status} ${response.statusText}`);
+            console.error(`Failed to get user: ${response.status} ${response.statusText}`);
+            return {
+                success: false,
+                data: null,
+                message: `Failed to get user: ${response.status} ${response.statusText}`
+            };
         }
         const data = await response.json();
         return {
@@ -84,7 +104,12 @@ async function getUser(id) {
         };
     }
     catch (error) {
-        throw new Error(`Failed to get user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        console.error(`Failed to get user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        return {
+            success: false,
+            data: null,
+            message: `Failed to get user: ${error instanceof Error ? error.message : 'Unknown error'}`
+        };
     }
 }
 mcpServer.tool("getUser", "Get a user by id from the database", {
@@ -119,9 +144,19 @@ async function deleteUser(id) {
         });
         if (!response.ok) {
             if (response.status === 404) {
-                throw new Error(`User with id '${id}' not found`);
+                console.error(`User with id '${id}' not found`);
+                return {
+                    success: false,
+                    data: null,
+                    message: `User with id '${id}' not found`
+                };
             }
-            throw new Error(`Failed to delete user: ${response.status} ${response.statusText}`);
+            console.error(`Failed to delete user: ${response.status} ${response.statusText}`);
+            return {
+                success: false,
+                data: null,
+                message: `Failed to delete user: ${response.status} ${response.statusText}`
+            };
         }
         const data = await response.json();
         return {
@@ -131,7 +166,12 @@ async function deleteUser(id) {
         };
     }
     catch (error) {
-        throw new Error(`Failed to delete user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        console.error(`Failed to delete user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        return {
+            success: false,
+            data: null,
+            message: `Failed to delete user: ${error instanceof Error ? error.message : 'Unknown error'}`
+        };
     }
 }
 mcpServer.tool("deleteUser", "Delete a user by id from the database", {
@@ -156,44 +196,99 @@ mcpServer.tool("deleteUser", "Delete a user by id from the database", {
         };
     }
 });
-// In-memory user storage (replace with database in production)
-let users = {};
-let userIdCounter = 1;
+// 接続管理の改善
 let transports = {};
+// 接続をクリーンアップする関数
+function cleanupTransport(sessionId) {
+    if (transports[sessionId]) {
+        delete transports[sessionId];
+        console.log(`Transport cleaned up for session: ${sessionId}`);
+    }
+}
 app.get("/sse", (c) => {
     console.log("SSE Connected.");
     return streamSSE(c, async (stream) => {
+        let transport = null;
         try {
-            const transport = new SSETransport('/messages', stream);
-            console.log("SSE Transport created." + transport.sessionId);
+            // SSEトランスポートを作成
+            transport = new SSETransport('/messages', stream);
+            console.log(`SSE Transport created for session: ${transport.sessionId}`);
+            // トランスポートを保存
             transports[transport.sessionId] = transport;
+            // 接続の中断処理を設定
             stream.onAbort(() => {
-                delete transports[transport.sessionId];
-                console.log("SSE Transport aborted." + transport.sessionId);
+                if (transport) {
+                    cleanupTransport(transport.sessionId);
+                    console.log(`SSE Transport aborted for session: ${transport.sessionId}`);
+                }
             });
+            // MCPサーバーに接続
             await mcpServer.connect(transport);
+            console.log(`MCP Server connected for session: ${transport.sessionId}`);
+            // 接続を維持（60秒間隔でハートビート）
             while (true) {
-                // This will keep the connection alive
-                // You can also await for a promise that never resolves
-                await stream.sleep(60000);
+                try {
+                    await stream.sleep(60000);
+                    // 接続が有効かチェック
+                    if (!transport || !transports[transport.sessionId]) {
+                        console.log(`Transport no longer valid for session: ${transport?.sessionId}`);
+                        break;
+                    }
+                }
+                catch (error) {
+                    console.error(`Error in connection loop for session ${transport?.sessionId}:`, error);
+                    break;
+                }
             }
         }
         catch (error) {
-            console.error("Error creating SSE Transport", error);
+            console.error(`Error creating SSE Transport:`, error);
+            if (transport) {
+                cleanupTransport(transport.sessionId);
+            }
+        }
+        finally {
+            // 最終的なクリーンアップ
+            if (transport) {
+                cleanupTransport(transport.sessionId);
+            }
         }
     });
 });
 app.post('/messages', async (c) => {
-    const sessionId = c.req.query('sessionId');
-    const transport = transports[sessionId ?? ''];
-    if (!transport) {
-        return c.text('No transport found for sessionId', 400);
+    try {
+        const sessionId = c.req.query('sessionId');
+        if (!sessionId) {
+            console.error('No sessionId provided in request');
+            return c.text('Session ID is required', 400);
+        }
+        const transport = transports[sessionId];
+        if (!transport) {
+            console.error(`No transport found for sessionId: ${sessionId}`);
+            return c.text('No transport found for sessionId', 400);
+        }
+        // メッセージを処理
+        const result = await transport.handlePostMessage(c);
+        return result;
     }
-    return await transport.handlePostMessage(c);
+    catch (error) {
+        console.error('Error handling POST message:', error);
+        return c.text('Internal server error', 500);
+    }
 });
+// ヘルスチェックエンドポイントを追加
+app.get('/health', (c) => {
+    return c.json({
+        status: 'ok',
+        activeConnections: Object.keys(transports).length,
+        timestamp: new Date().toISOString()
+    });
+});
+// サーバーを起動
 serve({
     fetch: app.fetch,
     port: port,
 });
 console.log(`MCP Server is running on http://localhost:${port}`);
 console.log(`SSE is running on http://localhost:${port}/sse`);
+console.log(`Health check available at http://localhost:${port}/health`);
