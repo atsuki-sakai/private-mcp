@@ -5,8 +5,6 @@ import { SSETransport } from "hono-mcp-server-sse-transport";
 import { streamSSE } from "hono/streaming";
 import { serve } from "@hono/node-server";
 
-const isHttps = false;
-const host = "localhost";
 const port = 3001;
 // Docker環境ではバックエンドサービス名を使用
 const apiUrl = process.env.NODE_ENV === 'development' && process.env.DOCKER 
